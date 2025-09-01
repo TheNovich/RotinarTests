@@ -34,7 +34,7 @@ from requests.exceptions import ConnectionError as RequestsConnectionError
 from app.bot.instance import bot
 from app.bot.handlers import start_handler, driver_panel, manager_panel
 
-# Настройка логирования
+'''# Настройка логирования
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s',
@@ -46,7 +46,7 @@ logging.basicConfig(
 
 app = FastAPI()
 
-'''def robust_polling():
+def robust_polling():
     """Устойчивый запуск бота с обработкой сетевых ошибок"""
     restart_delay = 5  # Начальная задержка перезапуска
 
@@ -80,6 +80,17 @@ if __name__ == '__main__':
     # Запускаем устойчивый polling
     robust_polling()'''
 
+# Настройка логирования
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler('bot_errors.log'),
+        logging.StreamHandler()
+    ]
+)
+
+app = FastAPI()
 
 @app.post("/webhook")
 async def process_webhook(request: Request):

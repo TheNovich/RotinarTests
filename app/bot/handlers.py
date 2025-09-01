@@ -1,7 +1,8 @@
 'импорт библиотеки pyTelegramBotApi'
 from telebot import types
 
-from app.bot.utils import role_required, search_number, on_click_manager_panel, user_verification, supabase, on_click_driver_panel
+from app.bot.utils import role_required, search_number, on_click_manager_panel, user_verification, supabase, on_click_driver_panel, on_click_admin_panel
+from app.database.crud import check_user_role
 
 'Импорт функций из собственного функцинала'
 from app.database.crud import set_role_db
@@ -30,12 +31,27 @@ def set_role(message):
     except:
         safe_send_message(message.chat.id, "❌ Использование: /set_role [phone] [role]")
 
-'Обработчик команды /manager_panel вызывает панель команд доступных для роли manager'
+
 
 @bot.message_handler(commands=['start'])
 def start_handler(message):
-    user_verification(message, driver_panel, manager_panel)
+    user_verification(message, driver_panel, manager_panel, admin_panel)
 
+@bot.message_handler(commands=['admin_panel'])
+@role_required('admin')
+def admin_panel(message):
+    markup = types.ReplyKeyboardMarkup()
+    buttons = []
+    buttons.append(types.KeyboardButton('Добавить нового пользователя'))
+    buttons.append(types.KeyboardButton('Удалить пользователя'))
+    markup.row(*buttons)
+    markup.row(types.KeyboardButton('Панель менеджера'))
+    safe_send_message(message.chat.id, 'Выберите действие: ', reply_markup=markup)
+    bot.register_next_step_handler(message, lambda msg: on_click_admin_panel(msg, admin_panel, manager_panel))
+
+
+
+'Обработчик команды /manager_panel вызывает панель команд доступных для роли manager'
 
 @bot.message_handler(commands=['manager_panel'])
 @role_required('manager', 'admin')
@@ -47,8 +63,12 @@ def manager_panel(message):
     if config.USE_NEW_ORDER_FLOW:
         buttons.append(types.KeyboardButton('📝 Создать заказ'))
     markup.row(*buttons)
+    if check_user_role(message.chat.id) == 'admin':
+        markup.row(types.KeyboardButton('Панель администратора'))
     safe_send_message(message.chat.id, 'Выберите действие: ', reply_markup=markup)
-    bot.register_next_step_handler(message, lambda msg: on_click_manager_panel(msg, manager_panel))
+    bot.register_next_step_handler(message, lambda msg: on_click_manager_panel(msg, manager_panel, admin_panel))
+
+
 
 # Обработчик кнопок подтверждения
 @bot.callback_query_handler(func=lambda call: call.data.startswith(('confirm_order_', 'restart_order_')))
@@ -96,6 +116,8 @@ def driver_panel(message):
     else:
         driver_finish_button = types.KeyboardButton('Завершить смену 🏁')
         driver_сancel_order_button = types.KeyboardButton('Отменить заказ ❌')
+        driver_break_button = types.KeyboardButton('Перерыв ⏸️')
+        driver_end_break = types.KeyboardButton('Завершить перерыв ▶️')
 
         if driver_state.data[0]['state_id'] == 1:
             driver_loading_car_button = types.KeyboardButton('Перейти к этапу загрузки автомобиля')
@@ -116,9 +138,25 @@ def driver_panel(message):
         elif driver_state.data[0]['state_id'] == 5:
             driver_take_order_button = types.KeyboardButton('Взять заказ')
             markup.row(driver_take_order_button)
+            markup.row(driver_finish_button, driver_break_button)
+        elif driver_state.data[0]['state_id'] == 6:
+            markup.row(driver_end_break)
             markup.row(driver_finish_button)
-
-
 
     safe_send_message(message.chat.id, 'Выберите действие: ', reply_markup=markup)
     bot.register_next_step_handler(message, lambda msg: on_click_driver_panel(msg, driver_panel))
+
+
+'Обработчик команды /add_user для добавления новых пользователей'
+@bot.message_handler(commands=['add_user'])
+@role_required('admin')
+def add_user(message):
+    from app.bot.utils import create_new_user
+    create_new_user(message)
+
+'Обработчик команды /delete_user для удаления пользователей'
+@bot.message_handler(commands=['delete_user'])
+@role_required('admin')
+def delete_user_command(message):
+    from app.bot.utils import delete_user
+    delete_user(message)
